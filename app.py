@@ -1,6 +1,8 @@
 import streamlit as st
 import io
 import html
+import pypdf
+import docx
 from utils.summarizer import load_summarizer, generate_summary
 from utils.text_analysis import analyze_document, extract_important_info
 
@@ -241,7 +243,7 @@ def main():
     with st.container():
         st.markdown('<div class="modern-card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📄 Your Document</div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-subtitle">Paste a document or upload a .txt file to extract its key information.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-subtitle">Paste a document or upload a .txt, .pdf, or .docx file to extract its key information.</div>', unsafe_allow_html=True)
         
         tab1, tab2 = st.tabs(["Paste Text", "Upload File"])
         
@@ -253,13 +255,28 @@ def main():
             input_text_pasted = st.text_area("Document Content", value=text_area_val, height=250, label_visibility="collapsed")
         
         with tab2:
-            uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"], label_visibility="collapsed")
+            uploaded_file = st.file_uploader("Upload a .txt, .pdf, or .docx file", type=["txt", "pdf", "docx"], label_visibility="collapsed")
             if uploaded_file is not None:
-                stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-                input_text_uploaded = stringio.read()
-                st.success("File uploaded successfully!")
-                with st.expander("View uploaded text"):
-                    st.write(input_text_uploaded)
+                try:
+                    if uploaded_file.name.lower().endswith(".txt"):
+                        stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
+                        input_text_uploaded = stringio.read()
+                    elif uploaded_file.name.lower().endswith(".pdf"):
+                        reader = pypdf.PdfReader(uploaded_file)
+                        extracted_pages = [page.extract_text() for page in reader.pages if page.extract_text()]
+                        input_text_uploaded = "\n".join(extracted_pages)
+                    elif uploaded_file.name.lower().endswith(".docx"):
+                        doc = docx.Document(uploaded_file)
+                        input_text_uploaded = "\n".join([para.text for para in doc.paragraphs])
+                    
+                    if not input_text_uploaded.strip():
+                        st.error("Could not extract readable text from this document. Please try another file or paste the text manually.")
+                    else:
+                        st.success("File uploaded successfully!")
+                        with st.expander("View uploaded text"):
+                            st.write(input_text_uploaded)
+                except Exception as e:
+                    st.error("Could not extract readable text from this document. Please try another file or paste the text manually.")
                     
         # Determine which text to use
         if input_text_uploaded:
